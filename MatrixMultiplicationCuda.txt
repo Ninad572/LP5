@@ -1,0 +1,76 @@
+ #include <iostream>
+ #include <cuda.h>
+ #define BLOCK_SIZE 16
+using namespace std;
+ 
+ void print_matrix(int *array, int rows, int cols) {
+     for (int i = 0; i < rows; i++) {
+         for (int j = 0; j < cols; j++) {
+             cout << array[i * cols + j] << " ";
+         }
+         cout << endl;
+     }
+ }
+ 
+ __global__ void mul(int *a, int *b, int*c, int c_rows, int c_cols, int common){
+ int row = blockIdx.y * blockDim.y + threadIdx.y;
+ int col = blockIdx.x  * blockDim.x + threadIdx.x;
+ int sum = 0;
+ 
+ if (col<c_cols && row<c_rows){
+ for (int j = 0; j<common;j++){
+ sum+=a[row*common + j]*b[j*c_cols + col];
+ }
+ c[c_cols*row + col] = sum;
+ }
+ 
+ }
+ 
+ 
+ int main(){
+ 
+ // initialize
+ 
+ const int A_r = 3;
+ const int A_c = 3;
+ const int B_r = A_c;
+ const int B_c = A_r;
+ const int C_r = A_r;
+ const int C_c = B_c;
+ 
+ const int A_size = A_r*A_c;
+ const int B_size  = B_r*B_c;
+ const int C_size = C_r*C_c;
+ 
+ int A[A_size] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+ int B[B_size] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+ int C[C_size];
+ 
+ int *m1, *m2,*result;
+ 
+ // allocate
+ cudaMallocManaged(&m1,A_size*sizeof(int));
+ cudaMallocManaged(&m2,B_size*sizeof(int));
+ cudaMallocManaged(&result,C_size*sizeof(int));
+ 
+ //copy data
+ cudaMemcpy(m1,A,A_size*sizeof(int),cudaMemcpyHostToDevice);
+ cudaMemcpy(m2,B,B_size*sizeof(int),cudaMemcpyHostToDevice);
+ 
+ // configuration
+ dim3 dimGrid((C_c + BLOCK_SIZE -1)/BLOCK_SIZE,(C_r+BLOCK_SIZE-1)/BLOCK_SIZE);
+ dim3 dimBlock(BLOCK_SIZE,BLOCK_SIZE);
+ 
+ mul<<<dimGrid,dimBlock>>>(m1,m2,result,C_r,C_c,A_c);
+ 
+ cudaMemcpy(C,result,C_size*sizeof(int),cudaMemcpyDeviceToHost);
+ 
+ cout<<"Result: \n";
+ print_matrix(C, C_r, C_c);
+ 
+ 
+ }
+
+nvcc -o mul_vectors mul_vectors.cu
+
+./mul_vectors
